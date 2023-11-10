@@ -4,6 +4,15 @@ type ServerId = int;
 type tServerInit = (peers: map[ServerId, machine], id: ServerId);
 event eServerInit: tServerInit;
 
+type tClientQueryRequest = (client: machine, reqId: int, query: Query);
+event eClientQueryRequest: tClientQueryRequest;
+type tClientQueryResult = (ok: bool, result: QueryResult);
+event eClientQueryResult: tClientQueryResult;
+type tClientCommandRequest = (client: machine, reqId: int, command: Command);
+event eClientCommandRequest: tClientCommandRequest;
+type tClientCommandResult = (ok: bool);
+event eClientCommandResult: tClientCommandResult;
+
 type tAppendEntriesRequest = (term: int, leaderId: ServerId, prevLogIndex: int, prevLogTerm: int,
                               entries: seq[LogEntry], leaderCommit: int);
 event eAppendEntriesRequest: tAppendEntriesRequest;
@@ -35,6 +44,8 @@ machine Server {
     var matchIndex: seq[int];
 
     var electionTimer: ElectionTimer;
+    
+    var appState: State;
 
     start state Init {
         entry {}
@@ -49,12 +60,26 @@ machine Server {
 
             electionTimer = new ElectionTimer(this);
             
-            goto Follower;
+            appState = initialState();
+            
+            // TODO: This is a temporary change.
+            // goto Follower;
+            goto Leader;
         }
     }
     
     state Leader {
         
+        
+        on eClientQueryRequest do (payload: tClientQueryRequest) {
+            send payload.client, eClientQueryResult, (ok = true, result = query(appState, payload.query));
+        }
+        
+        on eClientCommandRequest do (payload: tClientCommandRequest) {
+            apply(appState, payload.command);
+            send payload.client, eClientCommandResult, (ok = true,);
+            // TODO: Leader logic
+        }
     }
     
     state Candidate {
