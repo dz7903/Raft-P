@@ -91,14 +91,14 @@ machine Server {
             // Reset electionTimer.
             send electionTimer, eCancelTimer;
             // AppendEntries RPC
-            AppendEntries(recvEntry);
+            AppendEntriesReceiver(recvEntry);
             // Start the electionTimer again.
             send electionTimer, eStartTimer, (150+choose(150));
         }
         on eElectionTimeOut goto Candidate;
         on eRequestVote do (recvVoteRequest: tRequestVote){
             //RequestVote RPC
-            RequestVote(recvVoteRequest);
+            RequestVoteReceiver(recvVoteRequest);
         }
     }
     
@@ -106,7 +106,7 @@ machine Server {
         
     }
 
-    fun AppendEntries(recvEntry: tAppendEntriesRequest){
+    fun AppendEntriesReceiver(recvEntry: tAppendEntriesRequest){
         // AppendEntries RPC
         var i: int;
         var j: int;
@@ -143,7 +143,7 @@ machine Server {
         }
     }
 
-    fun RequestVote(recvVoteRequest: tRequestVote){
+    fun RequestVoteReceiver(recvVoteRequest: tRequestVote){
         // 1. Reply false if term < currentTerm (5.1)
         if(recvVoteRequest.lastLogTerm < currentTerm){
             send peers[recvVoteRequest.candidateId], eRequestVoteResult, (term=currentTerm, voteGranted=false);
