@@ -83,7 +83,30 @@ machine Server {
     }
     
     state Candidate {
-        
+        entry{
+            var key: int;
+            // On conversion to candidate, start election:s
+            currentTerm = currentTerm + 1;
+            votedFor = id;
+            send electionTimer, eCancelTimer;
+            send electionTimer, eStartTimer, (150+choose(150));
+            foreach (key in keys(peers))
+            {
+                if (key != id){
+                    send peers[key], eRequestVote, (term=currentTerm, candidateId=id, lastLogIndex=sizeof(log)-1, 
+                                                          lastLogTerm=log[sizeof(log)-1].term);
+                }
+            }
+        }
+        on eRequestVoteResult do (recvVoteResult: tRequestVoteResult){
+            // TODO: Majority voting result
+        }
+        on eAppendEntriesRequest do (recvEntry: tAppendEntriesRequest){
+            goto Follower;
+        }
+        on eElectionTimeOut do {
+            goto Candidate;
+        }
     }
     
     state Follower {
