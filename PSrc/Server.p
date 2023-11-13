@@ -87,6 +87,11 @@ machine Server {
                                 prevLogTerm=currentTerm, entries=log, leaderCommit=commitIndex);
                 }
             }
+
+            while (commitIndex > lastApplied) {
+                lastApplied = lastApplied + 1;
+                apply(appState, log[lastApplied].command);
+            }
             send electionTimer, eStartTimer, (50+choose(100)); 
         }
         on eElectionTimeOut do {
@@ -121,10 +126,15 @@ machine Server {
         on eAppendEntriesResult do (recvAppendResult: tAppendEntriesResult) {
             var entries: seq[LogEntry];
             var i: int;
-            if(recvAppendResult.success) {
-                nextIndex[recvAppendResult.fromId] = recvAppendResult.lastIndex; // Is this correct?
-                matchIndex[recvAppendResult.fromId] = recvAppendResult.lastIndex; // How to update?
 
+            if(recvAppendResult.term > currentTerm){
+                currentTerm = recvAppendResult.term;
+                goto Follower;
+            }
+
+            if(recvAppendResult.success) {
+                nextIndex[recvAppendResult.fromId] = recvAppendResult.lastIndex + 1; // Is this correct?
+                matchIndex[recvAppendResult.fromId] = recvAppendResult.lastIndex; // How to update?
                 CheckAndCommit();
             } else {
                 nextIndex[recvAppendResult.fromId] = nextIndex[recvAppendResult.fromId] - 1;
@@ -174,9 +184,20 @@ machine Server {
                                                     lastLogTerm=log[sizeof(log)-1].term);
                 }
             }
+
+            while (commitIndex > lastApplied) {
+                lastApplied = lastApplied + 1;
+                apply(appState, log[lastApplied].command);
+            }
+
             send electionTimer, eStartTimer, (150+choose(150));
         }
         on eRequestVoteResult do (recvVoteResult: tRequestVoteResult){
+            if(recvVoteResult.term > currentTerm) {
+                currentTerm = recvVoteResult.term;
+                goto Follower;
+            }
+
             // Majority voting result
             if (recvVoteResult.voteGranted){
                 voteCount = voteCount + 1;
@@ -188,6 +209,7 @@ machine Server {
         on eAppendEntriesRequest do (recvEntry: tAppendEntriesRequest){
             AppendEntriesReceiver(recvEntry);
             if (UpToDate(recvEntry.term, recvEntry.prevLogIndex, currentTerm, sizeof(log)-1)){
+                currentTerm = recvEntry.term;
                 goto Follower;
             }
         }
@@ -199,6 +221,10 @@ machine Server {
     
     state Follower {
         entry{
+            while (commitIndex > lastApplied) {
+                lastApplied = lastApplied + 1;
+                apply(appState, log[lastApplied].command);
+            }
             send electionTimer, eStartTimer, (150+choose(150));
         }
         on eAppendEntriesRequest do (recvEntry: tAppendEntriesRequest){
@@ -206,6 +232,9 @@ machine Server {
             send electionTimer, eCancelTimer;
             // AppendEntries RPC
             AppendEntriesReceiver(recvEntry);
+            if (recvEntry.term > currentTerm) {
+                currentTerm = recvEntry.term;
+            }
             // Start the electionTimer again.
             send electionTimer, eStartTimer, (150+choose(150));
         }
@@ -218,7 +247,17 @@ machine Server {
     }
     
     state Restart {
-        
+        entry{
+            var i: int;
+            i = 0;
+            while(i < sizeof(peers)) {
+                nextIndex[i] = 0;
+                matchIndex[i] = 0;
+            }
+            commitIndex = 0;
+            lastApplied = 0;
+            goto Follower;
+        }
     }
 
     fun AppendEntriesReceiver(recvEntry: tAppendEntriesRequest){
@@ -264,6 +303,11 @@ machine Server {
         }
         send peers[recvEntry.leaderId], eAppendEntriesResult, (term=currentTerm, success=true, 
             fromId=id, lastIndex=sizeof(log)-1);
+        
+        while (commitIndex > lastApplied) {
+            lastApplied = lastApplied + 1;
+            apply(appState, log[lastApplied].command);
+        }
     }
 
     fun RequestVoteReceiver(recvVoteRequest: tRequestVote){
@@ -310,6 +354,10 @@ machine Server {
         while (i < commitIndex + 1) {
             send clientCommands[i].client, eClientCommandResult, (ok = true, );
             i = i + 1;
+        }
+        while (commitIndex > lastApplied) {
+            lastApplied = lastApplied + 1;
+            apply(appState, log[lastApplied].command);
         }
     }
 }
