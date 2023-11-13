@@ -17,7 +17,7 @@ type tAppendEntriesRequest = (term: int, leaderId: ServerId, prevLogIndex: int, 
                               entries: seq[LogEntry], leaderCommit: int);
 event eAppendEntriesRequest: tAppendEntriesRequest;
 
-type tAppendEntriesResult = (term: int, success: bool);
+type tAppendEntriesResult = (term: int, success: bool, fromId: ServerId, lastIndex: int); // Discuss
 event eAppendEntriesResult: tAppendEntriesResult;
 
 type tRequestVote = (term: int, candidateId: ServerId, lastLogIndex: int, lastLogTerm: int);
@@ -39,13 +39,19 @@ machine Server {
     var commitIndex: int;
     var lastApplied: int;
 
-    //Volatile state on leaders
+    // Volatile state on leaders
     var nextIndex: seq[int];
     var matchIndex: seq[int];
 
-    var electionTimer: ElectionTimer;
+    // Follower to candidate and candidate restart voting
+    var electionTimer: ElectionTimer; 
     
     var appState: State;
+
+    // Vote count for candidates
+    var voteCount: int; 
+
+    var clientCommands: seq[tClientCommandRequest];
 
     start state Init {
         entry {}
@@ -57,27 +63,95 @@ machine Server {
             votedFor = -1;
             commitIndex = 0;
             lastApplied = 0;
+            voteCount = 0;
 
             electionTimer = new ElectionTimer(this);
             
             appState = initialState();
             
             // TODO: This is a temporary change.
-            // goto Follower;
-            goto Leader;
+            goto Follower;
+            // goto Leader;
         }
     }
     
     state Leader {
-        
-        
+        entry{
+            var key: int;
+            send electionTimer, eCancelTimer;
+            foreach (key in keys(peers)){
+                if (key != id){
+                    nextIndex += (key, sizeof(log));
+                    matchIndex += (key, 0);
+                    send peers[key], eAppendEntriesRequest, (term=currentTerm, leaderId=id, prevLogIndex=nextIndex[key]-1, 
+                                prevLogTerm=currentTerm, entries=log, leaderCommit=commitIndex);
+                }
+            }
+            send electionTimer, eStartTimer, (50+choose(100)); 
+        }
+        on eElectionTimeOut do {
+            var key: int;
+            var entries: seq[LogEntry];
+            var i: int;
+            foreach (key in keys(peers)){
+                if (key != id){
+                    if (nextIndex[key] <= sizeof(log) - 1){
+                        // Fill the entry buffer and send all the entries from nextIndex[key]
+                        i = 0;
+                        while(i < sizeof(log) - nextIndex[key]){
+                            entries += (i, log[i+nextIndex[key]]);
+                            i = i + 1;
+                        }
+                        send peers[key], eAppendEntriesRequest, (term=currentTerm, leaderId=id, prevLogIndex=nextIndex[key]-1, 
+                            prevLogTerm=log[nextIndex[key]-1].term, entries=entries, leaderCommit=commitIndex);
+                        // Empty the temporal entry buffer 
+                        while(i > -1){
+                            entries -= (i);
+                            i = i-1;
+                        }
+                    }else{
+                        // Send empty heartbeats
+                        send peers[key], eAppendEntriesRequest, (term=currentTerm, leaderId=id, prevLogIndex=nextIndex[key]-1, 
+                            prevLogTerm=log[nextIndex[key]-1].term, entries=entries, leaderCommit=commitIndex);
+                    }
+                }
+            }
+            send electionTimer, eStartTimer, (50+choose(100));
+        }
+        on eAppendEntriesResult do (recvAppendResult: tAppendEntriesResult) {
+            var entries: seq[LogEntry];
+            var i: int;
+            if(recvAppendResult.success) {
+                nextIndex[recvAppendResult.fromId] = recvAppendResult.lastIndex; // Is this correct?
+                matchIndex[recvAppendResult.fromId] = recvAppendResult.lastIndex; // How to update?
+
+                CheckAndCommit();
+            } else {
+                nextIndex[recvAppendResult.fromId] = nextIndex[recvAppendResult.fromId] - 1;
+                while(i < sizeof(log) - nextIndex[recvAppendResult.fromId]){
+                    entries += (i, log[i+nextIndex[recvAppendResult.fromId]]);
+                    i = i + 1;
+                }
+                send peers[recvAppendResult.fromId], eAppendEntriesRequest, (term=currentTerm, leaderId=id, 
+                    prevLogIndex=nextIndex[recvAppendResult.fromId]-1, 
+                    prevLogTerm=log[nextIndex[recvAppendResult.fromId]-1].term, 
+                    entries=entries, leaderCommit=commitIndex);
+                // Empty the temporal entry buffer 
+                while(i > -1){
+                    entries -= (i);
+                    i = i - 1;
+                }
+            }
+        }   
         on eClientQueryRequest do (payload: tClientQueryRequest) {
             send payload.client, eClientQueryResult, (ok = true, result = query(appState, payload.query));
         }
-        
         on eClientCommandRequest do (payload: tClientCommandRequest) {
+            log += (sizeof(log), (term=currentTerm, command=payload.command));
             apply(appState, payload.command);
-            send payload.client, eClientCommandResult, (ok = true,);
+            clientCommands += (sizeof(clientCommands), payload);
+            CheckAndCommit();
+            // send payload.client, eClientCommandResult, (ok = true,);
             // TODO: Leader logic
         }
     }
@@ -88,28 +162,45 @@ machine Server {
             // On conversion to candidate, start election:s
             currentTerm = currentTerm + 1;
             votedFor = id;
+            voteCount = 1;
+            if (voteCount > sizeof(peers)/2) {
+                goto Leader;
+            }
             send electionTimer, eCancelTimer;
-            send electionTimer, eStartTimer, (150+choose(150));
             foreach (key in keys(peers))
             {
                 if (key != id){
                     send peers[key], eRequestVote, (term=currentTerm, candidateId=id, lastLogIndex=sizeof(log)-1, 
-                                                          lastLogTerm=log[sizeof(log)-1].term);
+                                                    lastLogTerm=log[sizeof(log)-1].term);
+                }
+            }
+            send electionTimer, eStartTimer, (150+choose(150));
+        }
+        on eRequestVoteResult do (recvVoteResult: tRequestVoteResult){
+            // Majority voting result
+            if (recvVoteResult.voteGranted){
+                voteCount = voteCount + 1;
+                if (voteCount > sizeof(peers)/2) {
+                    goto Leader;
                 }
             }
         }
-        on eRequestVoteResult do (recvVoteResult: tRequestVoteResult){
-            // TODO: Majority voting result
-        }
         on eAppendEntriesRequest do (recvEntry: tAppendEntriesRequest){
-            goto Follower;
+            AppendEntriesReceiver(recvEntry);
+            if (UpToDate(recvEntry.term, recvEntry.prevLogIndex, currentTerm, sizeof(log)-1)){
+                goto Follower;
+            }
         }
         on eElectionTimeOut do {
             goto Candidate;
         }
+        ignore eClientQueryRequest, eClientCommandRequest;
     }
     
     state Follower {
+        entry{
+            send electionTimer, eStartTimer, (150+choose(150));
+        }
         on eAppendEntriesRequest do (recvEntry: tAppendEntriesRequest){
             // Reset electionTimer.
             send electionTimer, eCancelTimer;
@@ -123,6 +214,7 @@ machine Server {
             //RequestVote RPC
             RequestVoteReceiver(recvVoteRequest);
         }
+        ignore eClientQueryRequest, eClientCommandRequest;
     }
     
     state Restart {
@@ -135,11 +227,16 @@ machine Server {
         var j: int;
         // 1. Reply false if term < currentTerm (5.1)
         if (recvEntry.term < currentTerm){
-            send peers[recvEntry.leaderId], eAppendEntriesResult, (term=currentTerm, success=false);
+            send peers[recvEntry.leaderId], eAppendEntriesResult, (term=currentTerm, success=false, 
+                fromId=id, lastIndex=sizeof(log)-1);
+            return;
         }
         // 2. Reply false if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm. (5.3)
-        if (recvEntry.prevLogIndex > sizeof(log) && currentTerm == recvEntry.term){
-            send peers[recvEntry.leaderId], eAppendEntriesResult, (term=currentTerm, success=false);
+        if (recvEntry.prevLogIndex > sizeof(log) || 
+           (recvEntry.prevLogIndex <= sizeof(log) && log[recvEntry.prevLogIndex].term != recvEntry.prevLogTerm)){
+            send peers[recvEntry.leaderId], eAppendEntriesResult, (term=currentTerm, success=false, fromId=id, 
+                lastIndex=sizeof(log)-1);
+            return;
         }
         // 3. If an existing entry conflicts with a new one (same index but different terms), delete the existing entry
         // and all that follow if (5.3)
@@ -159,11 +256,14 @@ machine Server {
         j = sizeof(recvEntry.entries) - i;
         while(j < sizeof(recvEntry.entries)){
             log += (sizeof(log), recvEntry.entries[j]);
+            j = j + 1;
         }
         // 5. If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
         if(recvEntry.leaderCommit > commitIndex){
             commitIndex = Min(recvEntry.leaderCommit, sizeof(log));    
         }
+        send peers[recvEntry.leaderId], eAppendEntriesResult, (term=currentTerm, success=true, 
+            fromId=id, lastIndex=sizeof(log)-1);
     }
 
     fun RequestVoteReceiver(recvVoteRequest: tRequestVote){
@@ -176,7 +276,40 @@ machine Server {
         if((votedFor == -1 || votedFor == recvVoteRequest.candidateId) && 
            UpToDate(recvVoteRequest.lastLogTerm, recvVoteRequest.lastLogIndex, currentTerm, sizeof(log)-1)){
             send peers[recvVoteRequest.candidateId], eRequestVoteResult, (term=currentTerm, voteGranted=true);
-            goto Candidate; // Is this true? 
+            // goto Candidate; // Is this true? 
+        }
+    }
+
+    fun CheckAndCommit(){
+        var i: int;
+        var N: int; // New commit index
+        var majorMatchIndex: int;
+        var prevCommitIndex: int;
+        prevCommitIndex = commitIndex;
+        
+        // Commit up to the max N.
+        N = sizeof(log) - 1;
+        while (N > commitIndex) {
+            majorMatchIndex = 1; // Leader always has it
+            foreach(i in keys(peers)) {
+                if (matchIndex[i] >= N) {
+                    majorMatchIndex = majorMatchIndex + 1;
+                    if (majorMatchIndex > sizeof(peers) / 2  && log[N].term == currentTerm) {
+                        commitIndex = N;
+                        break;
+                    }
+                }
+            }
+            if (commitIndex == N) {
+                break;
+            }
+            N = N - 1;
+        }
+        // Response to client
+        i = prevCommitIndex;
+        while (i < commitIndex + 1) {
+            send clientCommands[i].client, eClientCommandResult, (ok = true, );
+            i = i + 1;
         }
     }
 }

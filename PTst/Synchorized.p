@@ -63,17 +63,21 @@ machine SynchorizedClient {
 }
 
 machine TestSynchorizedSingleSever {
+    var server: machine;
+    var servers: map[ServerId, machine];
+    var client: machine;
+    var timer: ElectionTimer;
     start state Init {
         entry {
-            var server: machine;
-            var servers: map[ServerId, machine];
-            var client: machine;
-            
             server = new Server();
             servers[1] = server;
+            timer = new ElectionTimer(this);
             send server, eServerInit, (peers = servers, id = 1);
             announce eSafetyMonitorInit, servers;
-            
+            send timer, eStartTimer, 1000;
+        }
+
+        on eElectionTimeOut do{
             client = new SynchorizedClient((servers = servers, n = 10));
         }
     }

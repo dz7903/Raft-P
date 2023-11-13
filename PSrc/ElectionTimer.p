@@ -20,6 +20,7 @@ machine ElectionTimer {
             timerTicks = inputTimerTicks;
             goto TimerStarted;
         }
+        ignore eCancelTimer;
     }
 
     state TimerStarted{
