@@ -3,7 +3,7 @@ fun SetUpRaft(
     numClients: int,
     numClientRequests: int
 ) {
-    var servers: map[ServerId, machine];
+    var servers: map[ServerId, Server];
     var i: int;
     
     i = 1;
@@ -19,7 +19,7 @@ fun SetUpRaft(
     
     i = 0;
     while (i < numClients) {
-        new Client((servers = servers, n = numClientRequests));
+        new Client((servers = servers, nRequests = numClientRequests, retryDuration = 200));
         i = i + 1;
     }
 }
