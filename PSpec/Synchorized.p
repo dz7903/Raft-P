@@ -1,4 +1,4 @@
-spec SynchorizedClientMonitor
+spec SynchorizedSafety
     observes eClientQueryRequest, eClientQueryResult, eClientCommandRequest, eClientCommandResult {
     var monitorState: State;
     var lastQueryRequest: tClientQueryRequest;
@@ -31,3 +31,26 @@ spec SynchorizedClientMonitor
         }
     }
 }
+
+spec SynchorizedLiveness
+    observes eClientQueryRequest, eClientQueryResult, eClientCommandRequest, eClientCommandResult {
+    var monitorState: State;
+
+    start state Init {
+        entry { goto NoPending; }
+    }
+    
+    cold state NoPending {
+        on eClientQueryRequest goto PendingQueryResult;
+        on eClientCommandRequest goto PendingCommandResult;
+    }
+    
+    hot state PendingQueryResult {
+        on eClientQueryResult goto NoPending;
+    }
+    
+    hot state PendingCommandResult {
+        on eClientCommandResult goto NoPending;
+    }
+}
+    

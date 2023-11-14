@@ -69,10 +69,11 @@ machine Server {
             
             appState = initialState();
             
-            // TODO: This is a temporary change.
             goto Follower;
-            // goto Leader;
         }
+        
+        on eClientQueryRequest do ignoreClientQueryRequest;
+        on eClientCommandRequest do ignoreClientCommandRequest;
     }
     
     state Leader {
@@ -94,6 +95,7 @@ machine Server {
             }
             send electionTimer, eStartTimer, (50+choose(100)); 
         }
+        
         on eElectionTimeOut do {
             var key: int;
             var entries: seq[LogEntry];
@@ -123,6 +125,7 @@ machine Server {
             }
             send electionTimer, eStartTimer, (50+choose(100));
         }
+        
         on eAppendEntriesResult do (recvAppendResult: tAppendEntriesResult) {
             var entries: seq[LogEntry];
             var i: int;
@@ -152,10 +155,12 @@ machine Server {
                     i = i - 1;
                 }
             }
-        }   
+        }
+        
         on eClientQueryRequest do (payload: tClientQueryRequest) {
             send payload.client, eClientQueryResult, (ok = true, result = query(appState, payload.query));
         }
+        
         on eClientCommandRequest do (payload: tClientCommandRequest) {
             log += (sizeof(log), (term=currentTerm, command=payload.command));
             apply(appState, payload.command);
@@ -192,6 +197,7 @@ machine Server {
 
             send electionTimer, eStartTimer, (150+choose(150));
         }
+        
         on eRequestVoteResult do (recvVoteResult: tRequestVoteResult){
             if(recvVoteResult.term > currentTerm) {
                 currentTerm = recvVoteResult.term;
@@ -206,6 +212,7 @@ machine Server {
                 }
             }
         }
+        
         on eAppendEntriesRequest do (recvEntry: tAppendEntriesRequest){
             AppendEntriesReceiver(recvEntry);
             if (UpToDate(recvEntry.term, recvEntry.prevLogIndex, currentTerm, sizeof(log)-1)){
@@ -213,10 +220,13 @@ machine Server {
                 goto Follower;
             }
         }
+        
         on eElectionTimeOut do {
             goto Candidate;
         }
-        ignore eClientQueryRequest, eClientCommandRequest;
+        
+        on eClientQueryRequest do ignoreClientQueryRequest;
+        on eClientCommandRequest do ignoreClientCommandRequest;
     }
     
     state Follower {
@@ -227,6 +237,7 @@ machine Server {
             }
             send electionTimer, eStartTimer, (150+choose(150));
         }
+        
         on eAppendEntriesRequest do (recvEntry: tAppendEntriesRequest){
             // Reset electionTimer.
             send electionTimer, eCancelTimer;
@@ -238,12 +249,16 @@ machine Server {
             // Start the electionTimer again.
             send electionTimer, eStartTimer, (150+choose(150));
         }
+        
         on eElectionTimeOut goto Candidate;
+        
         on eRequestVote do (recvVoteRequest: tRequestVote){
             //RequestVote RPC
             RequestVoteReceiver(recvVoteRequest);
         }
-        ignore eClientQueryRequest, eClientCommandRequest;
+        
+        on eClientQueryRequest do ignoreClientQueryRequest;
+        on eClientCommandRequest do ignoreClientCommandRequest;
     }
     
     state Restart {
@@ -258,6 +273,9 @@ machine Server {
             lastApplied = 0;
             goto Follower;
         }
+        
+        on eClientQueryRequest do ignoreClientQueryRequest;
+        on eClientCommandRequest do ignoreClientCommandRequest;
     }
 
     fun AppendEntriesReceiver(recvEntry: tAppendEntriesRequest){
@@ -359,6 +377,14 @@ machine Server {
             lastApplied = lastApplied + 1;
             apply(appState, log[lastApplied].command);
         }
+    }
+
+    fun ignoreClientQueryRequest(req: tClientQueryRequest) {
+        send req.client, eClientQueryResult, (ok = false, result = default(QueryResult));
+    }
+    
+    fun ignoreClientCommandRequest(req: tClientCommandRequest) {
+        send req.client, eClientCommandResult, (ok = false,);
     }
 }
 
