@@ -72,8 +72,7 @@ machine Server {
             goto Follower;
         }
         
-        on eClientQueryRequest do ignoreClientQueryRequest;
-        on eClientCommandRequest do ignoreClientCommandRequest;
+        ignore eClientQueryRequest, eClientCommandRequest;
     }
     
     state Leader {
@@ -225,8 +224,7 @@ machine Server {
             goto Candidate;
         }
         
-        on eClientQueryRequest do ignoreClientQueryRequest;
-        on eClientCommandRequest do ignoreClientCommandRequest;
+        ignore eClientQueryRequest, eClientCommandRequest;
     }
     
     state Follower {
@@ -257,8 +255,7 @@ machine Server {
             RequestVoteReceiver(recvVoteRequest);
         }
         
-        on eClientQueryRequest do ignoreClientQueryRequest;
-        on eClientCommandRequest do ignoreClientCommandRequest;
+        ignore eClientQueryRequest, eClientCommandRequest;
     }
     
     state Restart {
@@ -274,8 +271,7 @@ machine Server {
             goto Follower;
         }
         
-        on eClientQueryRequest do ignoreClientQueryRequest;
-        on eClientCommandRequest do ignoreClientCommandRequest;
+        ignore eClientQueryRequest, eClientCommandRequest;
     }
 
     fun AppendEntriesReceiver(recvEntry: tAppendEntriesRequest){
@@ -377,14 +373,6 @@ machine Server {
             lastApplied = lastApplied + 1;
             apply(appState, log[lastApplied].command);
         }
-    }
-
-    fun ignoreClientQueryRequest(req: tClientQueryRequest) {
-        send req.client, eClientQueryResult, (ok = false, result = default(QueryResult));
-    }
-    
-    fun ignoreClientCommandRequest(req: tClientCommandRequest) {
-        send req.client, eClientCommandResult, (ok = false,);
     }
 }
 

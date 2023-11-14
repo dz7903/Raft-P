@@ -28,7 +28,6 @@ machine Client {
                 counter = counter + 1;
                 loopCommandRequest(req);
                 
-                
                 foreach (k in clientKeys) {
                     req2 = (client = this, reqId = counter, query = (key = k,));
                     counter = counter + 1;
@@ -40,6 +39,7 @@ machine Client {
     
     fun loopQueryRequest(req: tClientQueryRequest) {
         var s: Server;
+        var b: bool;
         
         while (true) {
             foreach (s in values(servers)) {
@@ -47,7 +47,8 @@ machine Client {
             }
             send timer, eStartTimer, retryDuration;
             
-            while (true) {
+            b = true;
+            while (b) {
                 receive {
                     case eClientQueryResult : (res: tClientQueryResult) {
                         if (res.ok) {
@@ -56,7 +57,7 @@ machine Client {
                         }
                     }
                     case eElectionTimeOut : {
-                        break;
+                        b = false;
                     }
                 }
             }
@@ -65,6 +66,7 @@ machine Client {
     
     fun loopCommandRequest(req: tClientCommandRequest) {
         var s: Server;
+        var b: bool;
         
         while (true) {
             foreach (s in values(servers)) {
@@ -72,7 +74,8 @@ machine Client {
             }
             send timer, eStartTimer, retryDuration;
             
-            while (true) {
+            b = true;
+            while (b) {
                 receive {
                     case eClientCommandResult : (res: tClientCommandResult) {
                         if (res.ok) {
@@ -81,7 +84,7 @@ machine Client {
                         }
                     }
                     case eElectionTimeOut : {
-                        break;
+                        b = false;
                     }
                 }
             }

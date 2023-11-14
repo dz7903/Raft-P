@@ -47,10 +47,12 @@ spec SynchorizedLiveness
     
     hot state PendingQueryResult {
         on eClientQueryResult goto NoPending;
+        ignore eClientQueryRequest;
     }
     
     hot state PendingCommandResult {
         on eClientCommandResult goto NoPending;
+        ignore eClientCommandRequest;
     }
 }
     
