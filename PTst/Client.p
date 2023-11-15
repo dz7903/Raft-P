@@ -35,6 +35,7 @@ machine Client {
                 }
             }
         }
+        ignore eClientQueryRequest, eClientCommandRequest, eRequestVote, eClientCommandResult, eClientQueryResult;
     }
     
     fun loopQueryRequest(req: tClientQueryRequest) {
