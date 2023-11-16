@@ -61,8 +61,8 @@ machine Server {
             id = payload.id;
             currentTerm = 0;
             votedFor = -1;
-            commitIndex = 0;
-            lastApplied = 0;
+            commitIndex = -1;
+            lastApplied = -1;
             voteCount = 0;
 
             electionTimer = new ElectionTimer(this);
@@ -79,6 +79,10 @@ machine Server {
         entry{
             var key: int;
             send electionTimer, eCancelTimer;
+            // foreach (key in keys(peers)){
+            //     nextIndex -= (key);
+            //     matchIndex -= (key)
+            // }
             foreach (key in keys(peers)){
                 if (key != id){
                     nextIndex += (key, sizeof(log));
@@ -179,7 +183,7 @@ machine Server {
             clientCommands += (sizeof(clientCommands), payload);
             foreach (key in keys(peers)){
                 if (key != id){
-                    if (nextIndex[key] <= sizeof(log) - 1){
+                    if (nextIndex[key] < sizeof(log)){
                         // Fill the entry buffer and send all the entries from nextIndex[key]
                         i = 0;
                         while(i < sizeof(log) - nextIndex[key]){
@@ -200,7 +204,7 @@ machine Server {
                     }
                 }
             }
-            // CheckAndCommit();
+            CheckAndCommit();
             // send payload.client, eClientCommandResult, (ok = true,);
             // TODO: Leader logic
         }
@@ -299,7 +303,7 @@ machine Server {
             //RequestVote RPC
             RequestVoteReceiver(recvVoteRequest);
         }
-        ignore eClientQueryRequest, eClientCommandRequest, eRequestVoteResult, eClientCommandResult, eClientQueryResult;
+        ignore eClientQueryRequest, eClientCommandRequest, eRequestVoteResult, eClientCommandResult, eClientQueryResult, eAppendEntriesResult;
     }
     
     state Restart {
@@ -311,7 +315,7 @@ machine Server {
                 matchIndex[i] = 0;
             }
             commitIndex = 0;
-            lastApplied = 0;
+            lastApplied = -1;
             goto Follower;
         }
         
@@ -435,7 +439,7 @@ machine Server {
             N = N - 1;
         }
         // Response to client
-        i = prevCommitIndex;
+        i = prevCommitIndex + 1;
         while (i < commitIndex + 1) {
             send clientCommands[i].client, eClientCommandResult, (ok = true, );
             i = i + 1;
