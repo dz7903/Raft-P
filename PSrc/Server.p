@@ -181,7 +181,7 @@ machine Server {
             // print format("received command request {0}", payload);
             log += (sizeof(log), (term=currentTerm, command=payload.command));
             apply(appState, payload.command);
-            if (sizeof(clientCommands) == 0 || clientCommands[sizeof(clientCommands) - 1] != payload) {
+            if (!(payload in clientCommands)) {
                 clientCommands += (sizeof(clientCommands), payload);
             }
             // print format("clientCommands: {0}", clientCommands);
