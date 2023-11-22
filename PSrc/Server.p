@@ -178,9 +178,13 @@ machine Server {
             var key: int;
             var i: int;
             var entries: seq[LogEntry];
+            // print format("received command request {0}", payload);
             log += (sizeof(log), (term=currentTerm, command=payload.command));
             apply(appState, payload.command);
-            clientCommands += (sizeof(clientCommands), payload);
+            if (sizeof(clientCommands) == 0 || clientCommands[sizeof(clientCommands) - 1] != payload) {
+                clientCommands += (sizeof(clientCommands), payload);
+            }
+            // print format("clientCommands: {0}", clientCommands);
             foreach (key in keys(peers)){
                 if (key != id){
                     if (nextIndex[key] < sizeof(log)){
@@ -417,6 +421,7 @@ machine Server {
         var majorMatchIndex: int;
         var prevCommitIndex: int;
         prevCommitIndex = commitIndex;
+        // print format("commit index = {0}", commitIndex);
         
         // Commit up to the max N.
         N = sizeof(log) - 1;
@@ -426,12 +431,12 @@ machine Server {
                 if (i != id) {
                     if (matchIndex[i] >= N) {
                         majorMatchIndex = majorMatchIndex + 1;
-                        if (majorMatchIndex > sizeof(peers) / 2  && log[N].term == currentTerm) {
-                            commitIndex = N;
-                            break;
-                        }
                     }
                 }
+            }
+            if (majorMatchIndex > sizeof(peers) / 2  && log[N].term == currentTerm) {
+                commitIndex = N;
+                break;
             }
             if (commitIndex == N) {
                 break;
