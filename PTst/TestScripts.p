@@ -1,11 +1,11 @@
 module Raft = union { Server }, { Client }, { ElectionTimer }, { Wrapper };
 
 test tcSingleClientSingleServer [main = TestSingleClientSingleServer]:
-    assert SynchorizedSafety, SynchorizedLiveness in
+    assert SynchorizedSafety, LivenessMonitor in
     union Raft, { TestSingleClientSingleServer };
 
 test tcSingleClientMultipleServers [main = TestSingleClientMultipleServers]:
-    assert SynchorizedSafety, SynchorizedLiveness in
+    assert SynchorizedSafety, LivenessMonitor in
     union Raft, { TestSingleClientMultipleServers };
 
 test tcSingleClientMultipleServersWithDelay [main = TestSingleClientMultipleServersWithDelay]:

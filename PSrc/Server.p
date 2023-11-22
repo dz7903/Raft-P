@@ -4,13 +4,13 @@ type ServerId = int;
 type tServerInit = (peers: map[ServerId, machine], id: ServerId);
 event eServerInit: tServerInit;
 
-type tClientQueryRequest = (client: machine, reqId: int, query: Query);
+type tClientQueryRequest = (client: Client, reqId: int, query: Query);
 event eClientQueryRequest: tClientQueryRequest;
-type tClientQueryResult = (ok: bool, result: QueryResult);
+type tClientQueryResult = (client: Client, reqId: int, ok: bool, result: QueryResult);
 event eClientQueryResult: tClientQueryResult;
-type tClientCommandRequest = (client: machine, reqId: int, command: Command);
+type tClientCommandRequest = (client: Client, reqId: int, command: Command);
 event eClientCommandRequest: tClientCommandRequest;
-type tClientCommandResult = (ok: bool);
+type tClientCommandResult = (client: Client, reqId: int, ok: bool);
 event eClientCommandResult: tClientCommandResult;
 
 type tAppendEntriesRequest = (term: int, leaderId: ServerId, prevLogIndex: int, prevLogTerm: int,
@@ -171,7 +171,8 @@ machine Server {
         }
         
         on eClientQueryRequest do (payload: tClientQueryRequest) {
-            send payload.client, eClientQueryResult, (ok = true, result = query(appState, payload.query));
+            send payload.client, eClientQueryResult, (
+                client = payload.client, reqId = payload.reqId, ok = true, result = query(appState, payload.query));
         }
         
         on eClientCommandRequest do (payload: tClientCommandRequest) {
@@ -446,7 +447,8 @@ machine Server {
         // Response to client
         i = prevCommitIndex + 1;
         while (i < commitIndex + 1) {
-            send clientCommands[i].client, eClientCommandResult, (ok = true, );
+            send clientCommands[i].client, eClientCommandResult, (
+                client = clientCommands[i].client, reqId = clientCommands[i].reqId, ok = true);
             i = i + 1;
         }
         while (commitIndex > lastApplied) {

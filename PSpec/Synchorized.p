@@ -32,28 +32,28 @@ spec SynchorizedSafety
     }
 }
 
-spec SynchorizedLiveness
-    observes eClientQueryRequest, eClientQueryResult, eClientCommandRequest, eClientCommandResult {
-    var monitorState: State;
+// spec SynchorizedLiveness
+//     observes eClientQueryRequest, eClientQueryResult, eClientCommandRequest, eClientCommandResult {
+//     var monitorState: State;
 
-    start state Init {
-        entry { goto NoPending; }
-    }
+//     start state Init {
+//         entry { goto NoPending; }
+//     }
     
-    cold state NoPending {
-        on eClientQueryRequest goto PendingQueryResult;
-        on eClientCommandRequest goto PendingCommandResult;
-        ignore eClientCommandResult, eClientQueryResult;
-    }
+//     cold state NoPending {
+//         on eClientQueryRequest goto PendingQueryResult;
+//         on eClientCommandRequest goto PendingCommandResult;
+//         ignore eClientCommandResult, eClientQueryResult;
+//     }
     
-    hot state PendingQueryResult {
-        on eClientQueryResult goto NoPending;
-        ignore eClientQueryRequest, eClientCommandResult, eClientCommandRequest;
-    }
+//     hot state PendingQueryResult {
+//         on eClientQueryResult goto NoPending;
+//         ignore eClientQueryRequest, eClientCommandResult, eClientCommandRequest;
+//     }
     
-    hot state PendingCommandResult {
-        on eClientCommandResult goto NoPending;
-        ignore eClientCommandRequest, eClientQueryResult, eClientQueryRequest;
-    }
-}
+//     hot state PendingCommandResult {
+//         on eClientCommandResult goto NoPending;
+//         ignore eClientCommandRequest, eClientQueryResult, eClientQueryRequest;
+//     }
+// }
     
