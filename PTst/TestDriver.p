@@ -1,10 +1,14 @@
 fun SetUpRaft(
     numServers: int,
     numClients: int,
-    numClientRequests: int
+    numClientRequests: int,
+    delayDuration: int,
+    dropRandomly: bool
 ) {
     var servers: map[ServerId, Server];
+    var wrappers: map[ServerId, Wrapper];
     var i: int;
+    var j: int;
     
     i = 1;
     while (i <= numServers) {
@@ -13,8 +17,18 @@ fun SetUpRaft(
     }
     
     foreach (i in keys(servers)) {
-        send servers[i], eServerInit, (peers = servers, id = i);
+        wrappers = default(map[ServerId, Wrapper]);
+        foreach (j in keys(servers))
+            if (j != i) {
+                wrappers += (j, new Wrapper((
+                    id = (i, j), server = servers[j], delayDuration = delayDuration, dropRandomly = dropRandomly)));
+            }
+        send servers[i], eServerInit, (peers = wrappers, id = i);
     }
+    
+    // foreach (i in keys(servers)) {
+    //     send servers[i], eServerInit, (peers = servers, id = i);
+    // }
     announce eSafetyMonitorInit, servers;
     
     i = 0;
@@ -27,7 +41,7 @@ fun SetUpRaft(
 machine TestSingleClientSingleServer {
     start state Init {
         entry {
-            SetUpRaft(1, 1, 10);
+            SetUpRaft(1, 1, 10, 0, false);
         }
     }
 }
@@ -35,7 +49,24 @@ machine TestSingleClientSingleServer {
 machine TestSingleClientMultipleServers {
     start state Init {
         entry {
-            SetUpRaft(5, 1, 10);
+            SetUpRaft(5, 1, 10, 0, false);
+        }
+    }
+}
+
+machine TestSingleClientMultipleServersWithDelay {
+    start state Init {
+        entry {
+            // SetUpRaft(5, 1, 10, 300, false);
+            SetUpRaft(5, 1, 10, 200, false);
+        }
+    }
+}
+
+machine TestSingleClientMultipleServersWithDrop {
+    start state Init {
+        entry {
+            SetUpRaft(5, 1, 10, 0, true);
         }
     }
 }
