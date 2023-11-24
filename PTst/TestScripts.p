@@ -15,3 +15,7 @@ test tcSingleClientMultipleServersWithDelay [main = TestSingleClientMultipleServ
 test tcSingleClientMultipleServersWithDrop [main = TestSingleClientMultipleServersWithDrop]:
     assert SynchorizedSafety in
     union Raft, { TestSingleClientMultipleServersWithDrop };
+
+test tcMultipleClientsMultipleServers [main = TestMultipleClientsMultipleServers]:
+    assert Safety, LivenessMonitor in
+    union Raft, { TestMultipleClientsMultipleServers };
