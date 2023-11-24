@@ -74,7 +74,8 @@ machine TestSingleClientMultipleServersWithDrop {
 machine TestMultipleClientsMultipleServers {
     start state Init {
         entry {
-            SetUpRaft(5, 3, 10, 0, false);
+            SetUpRaft(5, 5, 10, 0, false);
+            // SetUpRaft(5, 3, 10, 0, false);
         }
     }
 }
