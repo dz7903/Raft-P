@@ -16,6 +16,9 @@ machine Wrapper {
         on eAppendEntriesResult do (payload: tAppendEntriesResult) { process(eAppendEntriesResult, payload); }
         on eRequestVote do (payload: tRequestVote) { process(eRequestVote, payload); }
         on eRequestVoteResult do (payload: tRequestVoteResult) { process(eRequestVoteResult, payload); }
+        on eClientQueryRequest do (payload: tClientQueryRequest) { process(eClientQueryRequest, payload); }
+        on eClientCommandRequest do (payload: tClientCommandRequest) { process(eClientCommandRequest, payload); }
+        ignore eClientCommandResult, eClientQueryResult;
     }
     
     fun process(e: event, d: any) {

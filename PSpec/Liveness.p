@@ -15,7 +15,7 @@ spec LivenessMonitor
             pendingClients += (req.client);
             goto Pending;
         }
-        // ignore eClientCommandResult, eClientQueryResult;
+        ignore eClientCommandResult, eClientQueryResult;
     }
     
     hot state Pending {
