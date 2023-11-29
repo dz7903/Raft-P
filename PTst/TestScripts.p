@@ -1,4 +1,4 @@
-module Raft = union { Server }, { Client }, { ElectionTimer }, { Wrapper }, {PeriodicTimer};
+module Raft = union { Server }, { Client }, { ElectionTimer }, { Wrapper };
 
 test tcSingleClientSingleServer [main = TestSingleClientSingleServer]:
     assert SynchorizedSafety, LivenessMonitor in

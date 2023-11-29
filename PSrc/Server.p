@@ -419,73 +419,67 @@ machine Server {
         if (recvEntry.term < currentTerm){
             send peers[recvEntry.leaderId], eAppendEntriesResult, (term=currentTerm, success=false, 
                 fromId=id, lastIndex=sizeof(log)-1);
-            return;
-        }
-        print "after 1.";
-        // 2. Reply false if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm. (5.3)
-        if(recvEntry.prevLogIndex > -1){
-            if (recvEntry.prevLogIndex > sizeof(log) || 
-            (recvEntry.prevLogIndex < sizeof(log) && log[recvEntry.prevLogIndex].term != recvEntry.prevLogTerm)){
-                send peers[recvEntry.leaderId], eAppendEntriesResult, (term=currentTerm, success=false, fromId=id, 
-                    lastIndex=sizeof(log)-1);
-                // return;
-            }
-        }
-        print "after 2.";
-        
-        if (sizeof(recvEntry.entries) == 0){
-            send peers[recvEntry.leaderId], eAppendEntriesResult, (term=currentTerm, success=true, fromId=id, 
-                lastIndex=sizeof(log)-1);
-            return;
-        }
-        print "before 3.";
-        // 3. If an existing entry conflicts with a new one (same index but different terms), delete the existing entry
-        // and all that follow if (5.3)
-        i = recvEntry.prevLogIndex;
-        if(sizeof(log) > 0 && i >= 0) {
-            while(i + 1 < sizeof(log) && i - recvEntry.prevLogIndex < sizeof(recvEntry.entries)){
-                if(log[i + 1].term != recvEntry.entries[i - recvEntry.prevLogIndex].term){
-                    break;
-                }
-                i = i + 1;
-            }
-            print "after first while";
-            while(i + 1 < sizeof(log)){
-                log -= (sizeof(log) - 1);
-            }
-        }
-        print "after 3.";
-        // 4. Append any new entries not already in the log
-        if(recvEntry.prevLogIndex >= 0 && recvEntry.prevLogIndex < sizeof(log)){
-            print "3. if branch";
-            i = recvEntry.prevLogIndex + sizeof(recvEntry.entries) - sizeof(log);
-            j = sizeof(recvEntry.entries) - i;
-            while(j < sizeof(recvEntry.entries)){
-                log += (sizeof(log), recvEntry.entries[j]);
-                j = j + 1;
-            }
         }else{
-            print "3. else branch";
-            j = 0;
-            while(j < sizeof(recvEntry.entries)){
-                log += (sizeof(log), recvEntry.entries[j]);
-                j = j + 1;
+             // 2. Reply false if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm. (5.3)
+            if (recvEntry.prevLogIndex > -1 && (recvEntry.prevLogIndex > sizeof(log) || 
+                (recvEntry.prevLogIndex < sizeof(log) && log[recvEntry.prevLogIndex].term != recvEntry.prevLogTerm))){
+                    send peers[recvEntry.leaderId], eAppendEntriesResult, (term=currentTerm, success=false, fromId=id, 
+                        lastIndex=sizeof(log)-1);
+                    // return;
+            }else{                
+                if (sizeof(recvEntry.entries) == 0){
+                    return;
+                }
+                print "before 3.";
+                // 3. If an existing entry conflicts with a new one (same index but different terms), delete the existing entry
+                // and all that follow if (5.3)
+                i = recvEntry.prevLogIndex;
+                if(sizeof(log) > 0 && i >= 0) {
+                    while(i + 1 < sizeof(log) && i - recvEntry.prevLogIndex < sizeof(recvEntry.entries)){
+                        if(log[i + 1].term != recvEntry.entries[i - recvEntry.prevLogIndex].term){
+                            break;
+                        }
+                        i = i + 1;
+                    }
+                    print "after first while";
+                    while(i + 1 < sizeof(log)){
+                        log -= (sizeof(log) - 1);
+                    }
+                }
+                print "after 3.";
+                // 4. Append any new entries not already in the log
+                if(recvEntry.prevLogIndex >= 0 && recvEntry.prevLogIndex < sizeof(log)){
+                    print "3. if branch";
+                    i = recvEntry.prevLogIndex + sizeof(recvEntry.entries) - sizeof(log);
+                    j = sizeof(recvEntry.entries) - i;
+                    while(j < sizeof(recvEntry.entries)){
+                        log += (sizeof(log), recvEntry.entries[j]);
+                        j = j + 1;
+                    }
+                }else{
+                    print "3. else branch";
+                    j = 0;
+                    while(j < sizeof(recvEntry.entries)){
+                        log += (sizeof(log), recvEntry.entries[j]);
+                        j = j + 1;
+                    }
+                }
+                print "after 4.";
+                // 5. If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
+                if(recvEntry.leaderCommit > commitIndex){
+                    commitIndex = Min(recvEntry.leaderCommit, sizeof(log)-1);    
+                }
+                print "before 5. send";
+                send peers[recvEntry.leaderId], eAppendEntriesResult, (term=currentTerm, success=true, 
+                    fromId=id, lastIndex=sizeof(log)-1);
+                print "before 5. while";
+                while (commitIndex > lastApplied) {
+                    lastApplied = lastApplied + 1;
+                    apply(appState, log[lastApplied].command);
+                }
+                print "after 5.";
             }
         }
-        print "after 4.";
-        // 5. If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
-        if(recvEntry.leaderCommit > commitIndex){
-            commitIndex = Min(recvEntry.leaderCommit, sizeof(log)-1);    
-        }
-        print "before 5. send";
-        send peers[recvEntry.leaderId], eAppendEntriesResult, (term=currentTerm, success=true, 
-            fromId=id, lastIndex=sizeof(log)-1);
-        print "before 5. while";
-        while (commitIndex > lastApplied) {
-            lastApplied = lastApplied + 1;
-            apply(appState, log[lastApplied].command);
-        }
-        print "after 5.";
     }
 
     fun RequestVoteReceiver(recvVoteRequest: tRequestVote){
