@@ -123,11 +123,9 @@ machine Server {
             var key: int;
             var entries: seq[LogEntry];
             var i: int;
-            print "enter eElectionTimeOut";
             foreach (key in keys(peers)){
                 if (key != id){
                     if (nextIndex[key] < sizeof(log)){
-                        print "enter nextIndex[key] < sizeof(log) branch";
                         // Fill the entry buffer and send all the entries from nextIndex[key]
                         i = 0;
                         while(i < sizeof(log) - nextIndex[key]){
@@ -146,14 +144,11 @@ machine Server {
                             entries -= (sizeof(entries) - 1);
                         }
                     }else{
-                        print "enter else branch";
                         // Send empty heartbeats
                         if(nextIndex[key] > 0 && nextIndex[key] < sizeof(log)) {
-                            print "enter nextIndex[key] > 0 branch";
                             send peers[key], eAppendEntriesRequest, (term=currentTerm, leaderId=id, prevLogIndex=nextIndex[key]-1, 
                                 prevLogTerm=log[nextIndex[key]-1].term, entries=entries, leaderCommit=commitIndex);
                         }else{
-                            print "enter else branch";
                             send peers[key], eAppendEntriesRequest, (term=currentTerm, leaderId=id, prevLogIndex=nextIndex[key]-1, 
                                 prevLogTerm=0, entries=entries, leaderCommit=commitIndex);
                         }
@@ -188,12 +183,10 @@ machine Server {
             }
 
             if(recvAppendResult.success) {
-                print "recvAppendResult.success branch";
                 nextIndex[recvAppendResult.fromId] = recvAppendResult.lastIndex + 1;
                 matchIndex[recvAppendResult.fromId] = recvAppendResult.lastIndex;
                 CheckAndCommit();
             } else {
-                print "else branch";
                 if(recvAppendResult.lastIndex > 0 && nextIndex[recvAppendResult.fromId] > 0){
                     i = 0;
                     if(nextIndex[recvAppendResult.fromId] > recvAppendResult.lastIndex){
@@ -206,7 +199,6 @@ machine Server {
                         entries += (i, log[i+nextIndex[recvAppendResult.fromId]]);
                         i = i + 1;
                     }
-                    print "after first while";
                     if(nextIndex[recvAppendResult.fromId]-1 >= 0 && nextIndex[recvAppendResult.fromId]-1 < sizeof(log)){
                         send peers[recvAppendResult.fromId], eAppendEntriesRequest, (term=currentTerm, leaderId=id, 
                             prevLogIndex=nextIndex[recvAppendResult.fromId]-1, 
@@ -218,8 +210,6 @@ machine Server {
                             prevLogTerm=0, 
                             entries=entries, leaderCommit=commitIndex);
                     }
-                    
-                    print "after send";
                     // Empty the temporal entry buffer 
                     while(sizeof(entries) > 0){
                         entries -= (sizeof(entries) - 1);
@@ -239,7 +229,7 @@ machine Server {
             var i: int;
             var entries: seq[LogEntry];
             var recvedEntry: LogEntry;
-            // print format("received command request {0}", payload);
+
             recvedEntry = (term=currentTerm, command=payload.command, client=payload.client, reqId=payload.reqId);
             
             if (!(recvedEntry in log)) {
@@ -495,27 +485,22 @@ machine Server {
                 if (sizeof(recvEntry.entries) == 0){
                     return;
                 }
-                print "before 3.";
                 // 3. If an existing entry conflicts with a new one (same index but different terms), delete the existing entry
                 // and all that follow if (5.3)
                 i = recvEntry.prevLogIndex;
                 if(sizeof(log) > 0 && i >= 0) {
                     while(i + 1 < sizeof(log) && i - recvEntry.prevLogIndex < sizeof(recvEntry.entries)){
-                        print "deleting entries";
                         if(log[i + 1].term != recvEntry.entries[i - recvEntry.prevLogIndex].term){
                             break;
                         }
                         i = i + 1;
                     }
-                    print "after first while";
                     while(i + 1 < sizeof(log)){
                         log -= (sizeof(log) - 1);
                     }
                 }
-                print "after 3.";
                 // 4. Append any new entries not already in the log
                 if(recvEntry.prevLogIndex >= 0 && recvEntry.prevLogIndex < sizeof(log)){
-                    print "3. if branch";
                     i = recvEntry.prevLogIndex + sizeof(recvEntry.entries) - sizeof(log) + 1;
                     j = sizeof(recvEntry.entries) - i;
                     while(j < sizeof(recvEntry.entries)){
@@ -523,27 +508,22 @@ machine Server {
                         j = j + 1;
                     }
                 }else{
-                    print "3. else branch";
                     j = 0;
                     while(j < sizeof(recvEntry.entries)){
                         log += (sizeof(log), recvEntry.entries[j]);
                         j = j + 1;
                     }
                 }
-                print "after 4.";
                 // 5. If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
                 if(recvEntry.leaderCommit > commitIndex){
                     commitIndex = Min(recvEntry.leaderCommit, sizeof(log)-1);    
                 }
-                print "before 5. send";
                 send peers[recvEntry.leaderId], eAppendEntriesResult, (term=currentTerm, success=true, 
                     fromId=id, lastIndex=sizeof(log)-1);
-                print "before 5. while";
                 while (commitIndex > lastApplied) {
                     lastApplied = lastApplied + 1;
                     apply(appState, log[lastApplied].command);
                 }
-                print "after 5.";
             }
         }
     }
@@ -582,11 +562,9 @@ machine Server {
 
         prevCommitIndex = commitIndex;
         
-        print "before while";
         // Commit up to the max N as index.
         N = sizeof(log) - 1;
         while (N > commitIndex) {
-            print "N bigger than commit index";
             majorMatchIndex = 1; // Leader always has it
             foreach(i in keys(peers)) {
                 if (i != id) {
@@ -604,18 +582,14 @@ machine Server {
             }
             N = N - 1;
         }
-        print "after while";
         // Response to client
         i = prevCommitIndex + 1;
         
-        print "before if";
         while (i < commitIndex + 1 && i < sizeof(log)) {
-            print "send client result";
             send log[i].client, eClientCommandResult, (
                 client = log[i].client, reqId = log[i].reqId, ok = true);
             i = i + 1;
         }
-        print "before last while";
         while (commitIndex > lastApplied) {
             lastApplied = lastApplied + 1;
             if(lastApplied < sizeof(log)){
