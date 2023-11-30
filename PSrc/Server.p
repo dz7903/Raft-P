@@ -301,6 +301,7 @@ machine Server {
         entry{
             var key: int;
             var emptyLogEntry: LogEntry;
+            var serverKey: ServerId;
             // On conversion to candidate, start election:s
             currentTerm = currentTerm + 1;
             votedFor = id;
@@ -309,6 +310,13 @@ machine Server {
             if (voteCount > sizeof(peers)/2) {
                 goto Leader;
             }
+            
+            if (sizeof(voteFrom) > 0){
+                foreach(serverKey in voteFrom){
+                    voteFrom -= (serverKey);
+                }
+            }
+
             send electionTimer, eCancelTimer;
             foreach (key in keys(peers))
             {
@@ -335,11 +343,9 @@ machine Server {
             if(recvVoteResult.term > currentTerm) {
                 currentTerm = recvVoteResult.term;
                 goto Follower;
-            }
-
-            // Majority voting result
-            if (recvVoteResult.voteGranted){
+            }else if (recvVoteResult.voteGranted && !(recvVoteResult.fromId in voteFrom)){
                 voteCount = voteCount + 1;
+                voteFrom += (recvVoteResult.fromId);
                 if (voteCount > sizeof(peers)/2) {
                     goto Leader;
                 }
