@@ -17,5 +17,5 @@ test tcSingleClientMultipleServersWithDrop [main = TestSingleClientMultipleServe
     union Raft, { TestSingleClientMultipleServersWithDrop };
 
 test tcMultipleClientsMultipleServers [main = TestMultipleClientsMultipleServers]:
-    assert Safety, LivenessMonitor in
+    assert Safety, Linearizability, LivenessMonitor in
     union Raft, { TestMultipleClientsMultipleServers };
