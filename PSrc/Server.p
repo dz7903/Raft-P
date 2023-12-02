@@ -586,6 +586,9 @@ machine Server {
         i = prevCommitIndex + 1;
         
         while (i < commitIndex + 1 && i < sizeof(log)) {
+            announce eCommandLinearizationPoint,
+                (client = log[i].client, reqId = log[i].reqId,
+                command = log[i].command);
             send log[i].client, eClientCommandResult, (
                 client = log[i].client, reqId = log[i].reqId, ok = true);
             i = i + 1;

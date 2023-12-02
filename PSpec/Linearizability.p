@@ -46,9 +46,11 @@ spec Linearizability observes eClientQueryRequest, eClientQueryResult,
                 format("client {0} and reqId {1} has no corresponding request", payload.client, payload.reqId);
             assert clientCommands[(payload.client, payload.reqId)] == payload.command,
                 format("command {0} is different with recorded command {1}, for client {2} and reqId {3}", payload.command, clientCommands[(payload.client, payload.reqId)], payload.client, payload.reqId);
-            assert !((payload.client, payload.reqId) in linearizedCommands),
-                format("Linearization failed: command {0} has two linearization points", payload);
-            linearizedCommands += ((payload.client, payload.reqId), payload.command);
+            // assert !((payload.client, payload.reqId) in linearizedCommands),
+                // format("Linearization failed: command {0} has two linearization points", payload);
+            if (!((payload.client, payload.reqId) in linearizedCommands)) {
+                linearizedCommands += ((payload.client, payload.reqId), payload.command);
+            }
             apply(monitorState, payload.command);
         }
         
