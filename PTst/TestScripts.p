@@ -16,6 +16,14 @@ test tcSingleClientMultipleServersWithDrop [main = TestSingleClientMultipleServe
     assert SynchorizedSafety in
     union Raft, { TestSingleClientMultipleServersWithDrop };
 
+test tcSingleClientMultipleServersUnreliable [main = TestSingleClientMultipleServersUnreliable]:
+    assert SynchorizedSafety in
+    union Raft, {TestSingleClientMultipleServersUnreliable};
+
 test tcMultipleClientsMultipleServers [main = TestMultipleClientsMultipleServers]:
     assert Safety, Linearizability, LivenessMonitor in
     union Raft, { TestMultipleClientsMultipleServers };
+
+test tcMultipleClientsMultipleServersUnreliable [main = TestMultipleClientsMultipleServersUnreliable]:
+    assert Safety, Linearizability in
+    union Raft, {TestMultipleClientsMultipleServersUnreliable};
